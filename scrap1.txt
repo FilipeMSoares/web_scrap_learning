@@ -1,0 +1,59 @@
+#import pandas
+#import requests
+from bs4 import BeautifulSoup
+
+response = requests.get('https://www.basketball-reference.com/leagues/NBA_2018_totals.html')
+
+content = None
+if response.status_code == 200:
+    print ('Requisição bem sucedida!')
+    content = response.content
+    soup = BeautifulSoup(content, 'html.parser')
+    table = soup.find(name='table')
+
+    table_str = str(table)
+    data_frame = pandas.read_html(table_str)[0]
+
+def scrape_stats():
+    content = None
+    data_frames = pandas.DataFrame()
+    for year in range(2013,2019) :
+        response = requests.get('https://www.basketball-reference.com/leagues/NBA_'+str(year)+'_totals.html')
+        if(response.status_code == 200):
+            content = response.content
+        else:
+            content = None
+        
+        if content != None :
+            soup = BeautifulSoup(content,'html.parser')
+            table = soup.find(name='table', attrs={'id':'totals_stats'})
+
+            table_str = str(table)
+            data_frame = pandas.read_html(table_str)[0]
+
+            drop_indexs = data_frame[data_frame['Rk'] == 'Rk'].index
+            data_frame.drop(drop_indexs, inplace=True)
+
+            numeric_cols = data_frame.columns.drop(['Player','Pos','Tm'])
+            data_frame[numeric_cols] = data_frame[numeric_cols].apply(pandas.to_numeric)
+
+            data_frame['Year'] = [year for i in range(0,len(data_frame.index))]
+            data_frame['Year'] = data_frame['Year'].apply(pandas.to_numeric)
+
+            data_frames.append(data_frame)
+    return data_frames
+
+final_df = scrape_stats()
+
+import matplotlib.pyplot as pyplot
+import seaborn
+
+seaborn.barplot(x='Year',y='3PA',data=final_df)
+
+sorted_df = final_df.sort_values(by=['3P'], axis = 0, ascending=False)
+print(sorted_df[['Player','3P','Year']].head())
+
+grouped_df = final_df.groupby('Player',as_index=False).sum()
+sorted_df = grouped_df.sort_values(by=['3P'],axis=0,ascending=False)
+print(sorted_df[['Player','3P','3PA']].head())
+
